@@ -1,0 +1,32 @@
+# Backend
+wastenotify-api/vendor/
+wastenotify-api/node_modules/
+wastenotify-api/.env
+wastenotify-api/storage/*.key
+wastenotify-api/storage/framework/cache/data/*
+wastenotify-api/storage/framework/sessions/*
+wastenotify-api/storage/framework/views/*
+wastenotify-api/storage/logs/*
+wastenotify-api/public/storage
+wastenotify-api/bootstrap/cache/*.php
+
+# Frontend
+wastenotify-app/node_modules/
+wastenotify-app/dist/
+wastenotify-app/.env
+wastenotify-app/android/
+wastenotify-app/ios/
+wastenotify-app/.vite/
+
+# Deploy
+# The authorised SSH key is per-machine: whoever deploys adds their own, and a
+# key committed here would just be someone else's laptop. Harmless if leaked —
+# it is a public key — but it does not belong to the project.
+deploy/utho/authorized_key.txt
+*.tgz
+
+# Editors / OS
+.idea/
+.DS_Store
+Thumbs.db
+*.log

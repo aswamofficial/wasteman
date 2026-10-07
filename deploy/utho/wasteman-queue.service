@@ -1,0 +1,30 @@
+# /etc/systemd/system/wasteman-queue.service
+#
+# QUEUE_CONNECTION=database, so queued work — notification fan-out, push sends —
+# sits in a table until something drains it. Without this unit those rows
+# accumulate and no notification is ever delivered.
+#
+#   systemctl enable --now wasteman-queue
+#
+# Named for Wasteman so it can be restarted without touching anything else.
+
+[Unit]
+Description=Wasteman queue worker
+After=network.target mysql.service
+
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+RestartSec=5
+
+# --max-time recycles the worker hourly: a long-lived PHP process holds its
+# booted framework in memory, so a deploy's new code is not picked up until the
+# process restarts.
+ExecStart=/usr/bin/php /var/www/wasteman/wastenotify-api/artisan queue:work \
+    --sleep=3 --tries=3 --max-time=3600 --quiet
+
+# One worker. The box has 2 vCPU shared with Clean Washroom; Wasteman's queue
+# depth does not justify more.
+[Install]
+WantedBy=multi-user.target

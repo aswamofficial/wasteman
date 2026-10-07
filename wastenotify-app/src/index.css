@@ -1,0 +1,56 @@
+/* Fonts are installed as npm packages, not pulled from a CDN, so the app works
+   offline and inside the Capacitor webview. */
+@import '@fontsource/plus-jakarta-sans/400.css';
+@import '@fontsource/plus-jakarta-sans/600.css';
+@import '@fontsource/plus-jakarta-sans/700.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import 'material-symbols/outlined.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Carried over from the Stitch export's <style> block. */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-outlined.filled {
+  font-variation-settings: 'FILL' 1;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Ionic paints its own surfaces; point them at the design tokens so the shell
+   matches the generated screens instead of Ionic's defaults. */
+:root {
+  --ion-background-color: theme('colors.canvas');
+  --ion-text-color: theme('colors.ink');
+  --ion-font-family: 'Inter', system-ui, sans-serif;
+  --ion-color-primary: theme('colors.brand.DEFAULT');
+  --ion-color-primary-contrast: #ffffff;
+}
+
+ion-content {
+  --background: theme('colors.canvas');
+}
+
+body {
+  background-color: theme('colors.canvas');
+  color: theme('colors.ink');
+}
+
+/* Tabular figures keep the stat rows from shifting as numbers change. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

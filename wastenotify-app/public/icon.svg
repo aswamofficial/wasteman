@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Wasteman">
+  <title>Wasteman</title>
+  <defs>
+    <linearGradient id="wm-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B57D0"/>
+      <stop offset="0.52" stop-color="#1A73E8"/>
+      <stop offset="1" stop-color="#34A853"/>
+    </linearGradient>
+
+    <!--
+      The figure is painted by masking a white rectangle rather than by drawing
+      white shapes over the gradient. That lets the cut-outs — the jacket's
+      lapel V, the gap under the bin lid, the ridges — reveal the gradient
+      itself, so they stay correct at any size and on any background instead of
+      needing a flat colour that would only match in one place.
+    -->
+    <mask id="wm-cut">
+      <rect width="512" height="512" fill="black"/>
+
+      <g fill="white">
+        <!-- Head: upright, centred over the shoulders. -->
+        <circle cx="178" cy="150" r="44"/>
+
+        <!-- Blazer. Structured shoulders and a slight waist — the silhouette
+             is what carries "dignified" at icon size, not any detail. -->
+        <path d="M108 384 L119 258 Q126 210 178 200 Q230 210 237 258 L248 384 Z"/>
+
+        <!-- Arm reaching to the bin. Drawn as a stroke so it keeps an even
+             weight through the bend. -->
+        <path d="M234 236 Q272 244 300 262" stroke="white" stroke-width="30" stroke-linecap="round" fill="none"/>
+
+        <!-- Bin: lid, handle, tapered body. -->
+        <rect x="262" y="250" width="138" height="26" rx="11"/>
+        <rect x="318" y="234" width="26" height="18" rx="7"/>
+        <path d="M274 280 L389 280 L377 394 Q376 402 368 402 L294 402 Q286 402 285 394 Z"/>
+      </g>
+
+      <g fill="black">
+        <!-- Open jacket showing the shirt beneath. -->
+        <path d="M154 205 L202 205 L178 272 Z"/>
+        <!-- Separation between lid and body. -->
+        <rect x="266" y="274" width="132" height="8"/>
+        <!-- Bin ridges. -->
+        <rect x="309" y="300" width="10" height="76" rx="5"/>
+        <rect x="340" y="300" width="10" height="76" rx="5"/>
+      </g>
+    </mask>
+  </defs>
+
+  <rect width="512" height="512" rx="114" fill="url(#wm-grad)"/>
+  <g mask="url(#wm-cut)">
+    <rect width="512" height="512" fill="#FFFFFF"/>
+  </g>
+</svg>
