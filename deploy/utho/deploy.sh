@@ -2,11 +2,11 @@
 #
 # Wasteman — update an already-provisioned deployment on the Utho box.
 #
+#   cd /var/www/wasteman && git pull
 #   bash /var/www/wasteman/deploy/utho/deploy.sh
 #
-# Run AFTER the code has been synced to /var/www/wasteman. First-time setup is
-# in DEPLOY.md; this script assumes the database, .env, nginx block and FPM pool
-# already exist.
+# Run AFTER pulling. First-time setup is in DEPLOY.md; this script assumes the
+# database, .env, nginx block and FPM pool already exist.
 #
 # Touches nothing outside /var/www/wasteman except reloading Wasteman's own FPM
 # pool. Clean Washroom is not restarted, reloaded or read.

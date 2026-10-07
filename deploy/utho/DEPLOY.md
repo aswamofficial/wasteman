@@ -107,31 +107,59 @@ Do not continue to step 7 until that returns `150.241.244.225`.
 
 ## 2. Ship the code
 
-Wasteman is not in a git repository, so this is a direct transfer. From **Git
-Bash on Windows**, in `C:/xampp2/htdocs/wastenotify`:
+The source lives at **`github.com/aswamofficial/wasteman`**, and it is
+**private** — so the server needs its own credential. A read-only *deploy key*
+is the right one: it grants access to this repository alone, which an account
+token would not.
+
+### 2a. Give the server a deploy key
+
+On the server, generate a keypair that exists only for this purpose:
 
 ```bash
-tar --exclude=node_modules --exclude=vendor --exclude=dist --exclude=.env \
-    --exclude='wastenotify-api/storage/logs/*' \
-    --exclude='wastenotify-api/storage/framework/cache/*' \
-    -czf /tmp/wasteman.tgz . && \
-scp /tmp/wasteman.tgz root@150.241.244.225:/tmp/
+ssh-keygen -t ed25519 -C "wasteman-utho-deploy" -f /root/.ssh/wasteman_deploy -N ""
+cat /root/.ssh/wasteman_deploy.pub
 ```
 
-Then on the server:
+Paste that public key into GitHub at
+**Settings → Deploy keys → Add deploy key** on the `wasteman` repository.
+Title it `utho-150.241.244.225`. **Leave "Allow write access" unchecked** — the
+server only ever reads, and a read-only key cannot be used to push anything
+back if the box is ever compromised.
+
+Then tell SSH to use it for GitHub:
 
 ```bash
-mkdir -p /var/www/wasteman && tar xzf /tmp/wasteman.tgz -C /var/www/wasteman && rm /tmp/wasteman.tgz
+cat >> /root/.ssh/config <<'EOF'
+
+Host github-wasteman
+    HostName github.com
+    User git
+    IdentityFile /root/.ssh/wasteman_deploy
+    IdentitiesOnly yes
+EOF
+chmod 600 /root/.ssh/config
+
+ssh -T git@github-wasteman    # expect: "Hi aswamofficial/wasteman! You've successfully authenticated"
 ```
 
-> `.env` is excluded deliberately. The local one points at XAMPP on port 3307
-> with `APP_DEBUG=true`; copying it to production would expose stack traces to
-> citizens and fail to reach the database. Step 4 writes a fresh one.
+> `IdentitiesOnly yes` matters: without it SSH offers every key it has, and
+> GitHub answers with whichever one it matches first — which may be a different
+> repository's, and the clone then fails with a confusing permission error.
 
-Report photos already in local storage are **not** transferred by the command
-above (they live under `storage/app/public`, which is included — but the
-seeded demo images are the only ones there). If you want a clean start, empty
-`/var/www/wasteman/wastenotify-api/storage/app/public/reports/` on the server.
+### 2b. Clone
+
+```bash
+mkdir -p /var/www/wasteman
+git clone git@github-wasteman:aswamofficial/wasteman.git /var/www/wasteman
+```
+
+> `.env` is not in the repository, deliberately. The local one points at XAMPP
+> on port 3307 with `APP_DEBUG=true`; using it in production would expose stack
+> traces to citizens and fail to reach the database. Step 4 writes a fresh one.
+
+Seeded demo report photos are also not in the repository — `storage/app/public`
+ships empty, which is what you want for a real deployment.
 
 ---
 
@@ -286,11 +314,16 @@ reads "sample analysis", `ANTHROPIC_API_KEY` is not set or not cached.
 
 ## Updating later
 
+Now that the code comes from git, an update is two commands on the server:
+
 ```bash
-# resync from Windows (step 2), then:
+cd /var/www/wasteman && git pull
 bash /var/www/wasteman/deploy/utho/deploy.sh
 systemctl restart wasteman-queue
 ```
+
+`deploy.sh` reinstalls dependencies, runs migrations, rebuilds the front end,
+rebuilds the caches and reloads PHP-FPM. Push to `main` from Windows first.
 
 ---
 
