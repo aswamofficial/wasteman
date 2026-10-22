@@ -14,9 +14,19 @@ wastenotify-api/bootstrap/cache/*.php
 wastenotify-app/node_modules/
 wastenotify-app/dist/
 wastenotify-app/.env
-wastenotify-app/android/
-wastenotify-app/ios/
 wastenotify-app/.vite/
+
+# The Android project is tracked, not regenerated.
+#
+# `npx cap add android` produces a manifest with INTERNET and nothing else.
+# This app needs CAMERA and the location permissions or its entire capture
+# flow fails silently on device — so the manifest is hand-edited, and a
+# regenerated project would quietly lose that. Capacitor's own
+# android/.gitignore already excludes build output, local.properties and the
+# copied web assets, so only the parts worth versioning are kept.
+#
+# iOS stays ignored: nothing has been built or customised there yet.
+wastenotify-app/ios/
 
 # Deploy
 # The authorised SSH key is per-machine: whoever deploys adds their own, and a
