@@ -83,25 +83,59 @@ you did not expect it to.
 
 ---
 
-## 1. Register the DNS records
+## 1. Point wasteman.in at the server (GoDaddy)
 
-At your registrar's DNS panel, two **A** records pointing at the server:
+`wasteman.in` is registered at GoDaddy and uses GoDaddy's own nameservers
+(`ns45.domaincontrol.com`, `ns46.domaincontrol.com`), so the records are edited
+in GoDaddy's DNS panel. Nothing needs to change about the nameservers.
+
+Do this **first**. Propagation takes anywhere from minutes to a few hours, and
+Let's Encrypt in step 7 cannot issue a certificate until the name resolves to
+this server.
+
+### 1a. Turn off Forwarding — before touching the A record
+
+As it stands the domain answers `HTTP 308` from `Server: DPS`, and its A records
+are `76.223.105.230` and `13.248.243.5`. Those are GoDaddy's own parking and
+forwarding addresses, not a misconfiguration to edit around: **domain
+forwarding is switched on**, and while it is, GoDaddy manages the `@` record
+itself and will overwrite or re-add its address after you save yours. The A
+record appears to change and then quietly reverts.
+
+So, in order:
+
+**Domain → wasteman.in → Domain Settings → Forwarding → Delete** (both the
+domain and any `www` forwarding entry).
+
+### 1b. Then set the A records
+
+**Domain → wasteman.in → DNS → DNS Records.** Edit the existing `A` record for
+`@` rather than adding a second one — two A records for the same name will
+round-robin, and half of all requests would land on GoDaddy's parking page.
 
 | Type | Name | Value | TTL |
 |---|---|---|---|
-| A | `@` | `150.241.244.225` | 3600 |
-| A | `www` | `150.241.244.225` | 3600 |
+| A | `@` | `150.241.244.225` | 600 |
+| A | `www` | `150.241.244.225` | 600 |
 
-Do this **first** — propagation takes anywhere from minutes to a few hours, and
-Let's Encrypt in step 7 cannot issue a certificate until the name resolves here.
+Delete any leftover `CNAME` for `www` first — GoDaddy's default parking config
+usually has one, and a CNAME and an A record for the same name cannot coexist.
 
-Check from your machine:
+> 600 seconds, not the default 1 hour. A short TTL while you are setting this up
+> means a mistake costs ten minutes instead of an hour. Raise it once the site
+> is live and stable.
+
+### 1c. Verify before continuing
 
 ```bash
 nslookup wasteman.in
+nslookup www.wasteman.in
 ```
 
-Do not continue to step 7 until that returns `150.241.244.225`.
+Both must return **`150.241.244.225`** and nothing else. If either still shows
+a `76.*` or `13.*` address, forwarding is still on or the old record is still
+there — go back to 1a rather than continuing, because step 7 will fail and
+Let's Encrypt rate-limits repeated failures.
 
 ---
 
@@ -211,6 +245,29 @@ ls -l /run/php/php8.3-fpm-wasteman.sock     # must now exist
 If the socket is missing, stop here — nginx will return 502 for every Wasteman
 request and the cause will be in `/var/log/php8.3-fpm.log`.
 
+### 5a. GD and a TrueType font
+
+Submitted photos are stamped with their coordinates and the reporter's name.
+That needs PHP's GD extension **with FreeType**, and a TTF font on disk. No font
+is bundled with the repository — `PhotoStamp` resolves one from the system at
+runtime, DejaVu being the one Ubuntu ships.
+
+```bash
+php -r 'var_dump(extension_loaded("gd"), gd_info()["FreeType Support"] ?? false);'
+ls /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+```
+
+Expect `bool(true)` twice and the font to exist. If the font is missing:
+
+```bash
+apt -y install fonts-dejavu-core
+```
+
+> Neither failure breaks anything loudly, which is the problem. Without a usable
+> font the stamp is skipped, the report saves normally, and the only trace is a
+> line in the Laravel log — so check it here rather than discovering it on a
+> photo somebody has already forwarded to the corporation.
+
 ---
 
 ## 6. Front end and nginx
@@ -306,9 +363,25 @@ systemctl is-active nginx php8.3-fpm mysql
 free -m                                           # compare against 0b
 ```
 
-Then in a browser: sign in, submit a report with a photo, and check the analysis
-panel shows type, volume, weight, recyclable and compostable. If the engine badge
-reads "sample analysis", `ANTHROPIC_API_KEY` is not set or not cached.
+Then in a browser: sign in, submit a report with a photo, and check three things.
+
+1. The analysis panel shows type, volume, weight, recyclable and compostable.
+   If the engine badge reads **"sample analysis"**, `ANTHROPIC_API_KEY` is not
+   set or `config:cache` has not been re-run since it was.
+2. The submitted photo comes back **stamped** along the bottom with the
+   reference, address, GPS and your name. If it does not, re-check 5a.
+3. The photo moderation is actually running. It only runs on the live model —
+   the offline classifier cannot judge image contents and passes everything
+   through, so with no API key every upload is accepted regardless. Confirm
+   with:
+
+   ```bash
+   cd /var/www/wasteman/wastenotify-api
+   php artisan tinker --execute="var_dump(get_class(app(App\Services\Ai\WasteClassifier::class)));"
+   ```
+
+   `FallbackWasteClassifier` means the live model is in use and moderation is
+   on. `StubWasteClassifier` means it is not.
 
 ---
 
