@@ -2,3 +2,15 @@
 !private/
 !public/
 !.gitignore
+
+# Published boundary data — CCMC's 2024 ward export, Greater Chennai
+# Corporation's wards, and Tamil Nadu's revenue districts.
+#
+# This is reference data the app is built on, not user content: ward routing is
+# point-in-polygon against these files, and without them every report resolves
+# to no ward at all. It only lives under storage/ because that is where the
+# import commands read from, and Laravel's blanket ignore here is meant for
+# uploads. Versioning it is what makes a rebuild reproduce — 1.9 MB is a cheap
+# price for a deployment that does not depend on one laptop.
+!geo/
+!geo/**
