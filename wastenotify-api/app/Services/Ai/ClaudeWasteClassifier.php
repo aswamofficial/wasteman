@@ -3,6 +3,7 @@
 namespace App\Services\Ai;
 
 use Anthropic\Client;
+use App\Exceptions\ImageRejected;
 use Illuminate\Support\Facades\Log;
 
 class ClaudeWasteClassifier implements WasteClassifier
@@ -33,7 +34,23 @@ class ClaudeWasteClassifier implements WasteClassifier
 
     private const SYSTEM = <<<'TXT'
         You classify photographs submitted to Wasteman, a civic app where citizens
-        report waste. Your classification decides who is sent to collect it:
+        report waste.
+
+        Before anything else, decide whether the photo belongs in a municipal
+        waste report at all. Anyone with the app can upload anything, and the
+        photo may be attached to a report that a ward officer, a private
+        collector and the resident all see. Refuse sexual content, graphic
+        violence or injury, corpses, material that abuses or demeans a person,
+        and photos whose evident purpose is to show a person rather than waste.
+
+        Be precise about that last one rather than cautious: streets have people
+        on them, and a passer-by, a shopkeeper or a waste worker who happens to
+        be in frame is normal and is not grounds to refuse. What matters is
+        whether the photo is of the waste or of the person. Wrongly refusing a
+        genuine report costs a citizen their report and teaches them the app
+        does not work.
+
+        Once that is settled, your classification decides who is sent to collect it:
 
         - "recyclable" goes to a private scrap contractor, who travels to the
           citizen's home and pays them for the material.
@@ -101,17 +118,21 @@ class ClaudeWasteClassifier implements WasteClassifier
         );
 
         /*
-         * Check why the model stopped before reading what it produced.
+         * Check why the model stopped before reading what it produced. A
+         * refusal and a truncation both return HTTP 200 with no usable
+         * assessment, so neither raises on its own.
          *
-         * A refusal and a truncation both return HTTP 200 with no usable
-         * assessment, so neither raises on its own. Throwing here is what puts
-         * the request on the fallback path — the citizen gets a report either
-         * way, and the reason lands in the log rather than being silently
-         * dressed up as a classification.
+         * The two are not the same kind of event, and conflating them was a
+         * real hole: a refusal thrown as a generic error fell through to the
+         * offline stub, which cheerfully returned "Plastic waste, 25 kg" for
+         * whatever had just been refused and filed it as an ordinary report.
+         * A refusal is now a rejection, and rejections do not fall back.
          */
         if ($message->stopReason === 'refusal') {
-            throw new \RuntimeException(
-                'Classification declined: '.($message->stopDetails?->category ?? 'unspecified')
+            throw new ImageRejected(
+                category: ImageRejected::normaliseCategory($message->stopDetails?->category),
+                engine: 'claude-safety',
+                message: 'Declined by the model: '.($message->stopDetails?->category ?? 'unspecified'),
             );
         }
 
@@ -121,6 +142,17 @@ class ClaudeWasteClassifier implements WasteClassifier
 
         /** @var WasteAssessment $out */
         $out = $message->parsedOutput();
+
+        // The model's own moderation answer, separate from the API-level
+        // refusal above: that one fires on the request, this one is the
+        // judgement we explicitly asked for.
+        if (! $out->is_appropriate) {
+            throw new ImageRejected(
+                category: ImageRejected::normaliseCategory($out->rejection_category),
+                engine: 'claude',
+                message: 'Moderation check failed: '.($out->rejection_category ?: 'unspecified'),
+            );
+        }
 
         $bucket = Classification::normaliseVolumeBucket($out->volume_bucket);
 

@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\ImageRejected;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReportResource;
+use App\Models\BlockedImage;
 use App\Models\MaterialRate;
 use App\Models\Report;
 use App\Services\Ai\Classification;
 use App\Services\Ai\WasteClassifier;
+use App\Services\PhotoStamp;
 use App\Services\PickupWorkflow;
 use App\Services\ReportWorkflow;
 use DomainException;
@@ -38,8 +41,55 @@ class ReportController extends Controller
 
         $path = $request->file('photo')->store('reports/pending', 'public');
         $absolute = Storage::disk('public')->path($path);
+        $hash = BlockedImage::hashFile($absolute);
 
-        $result = $classifier->classify($absolute, $request->file('photo')->getMimeType());
+        /*
+         * Check the blacklist before the classifier, not after.
+         *
+         * A photo refused once will be retried — by the same person pressing
+         * the button again, or by someone passing it around. Matching on the
+         * hash first means the retry costs a disk read instead of a vision
+         * call, and the answer cannot drift between attempts.
+         */
+        if ($known = BlockedImage::where('image_hash', $hash)->first()) {
+            $known->increment('attempts');
+            $known->forceFill(['last_attempt_at' => now()])->save();
+            Storage::disk('public')->delete($path);
+
+            Log::warning('Blocked image re-uploaded.', [
+                'hash' => $hash,
+                'user_id' => $request->user()->id,
+                'category' => $known->category,
+                'attempts' => $known->attempts,
+            ]);
+
+            return response()->json([
+                'message' => (new ImageRejected($known->category, $known->engine))->citizenMessage(),
+            ], 422);
+        }
+
+        try {
+            $result = $classifier->classify($absolute, $request->file('photo')->getMimeType());
+        } catch (ImageRejected $e) {
+            /*
+             * Blacklist the bytes, then delete the file. In that order: if the
+             * process dies between the two we are left with an orphan file,
+             * which is harmless, rather than an unrecorded rejection, which
+             * means the next upload of it pays for another vision call.
+             */
+            BlockedImage::record($hash, $request->user()->id, $e->category, $e->engine);
+            Storage::disk('public')->delete($path);
+
+            Log::warning('Photo rejected by moderation.', [
+                'hash' => $hash,
+                'user_id' => $request->user()->id,
+                'category' => $e->category,
+                'engine' => $e->engine,
+                'detail' => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => $e->citizenMessage()], 422);
+        }
 
         /*
          * Keep the server's own record of what this photo was told.
@@ -72,7 +122,7 @@ class ReportController extends Controller
     /**
      * Step 4: create the report from the analysed photo plus location/details.
      */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, PhotoStamp $stamp): JsonResponse
     {
         $data = $request->validate([
             'photo_path' => ['required', 'string', 'max:255'],
@@ -193,6 +243,33 @@ class ReportController extends Controller
             return response()->json([
                 'message' => "We couldn't save your report just now. Please try again.",
             ], 500);
+        }
+
+        /*
+         * Stamp the photo with where it was taken and who reported it.
+         *
+         * Here rather than at /analyse, because this is the first moment both
+         * facts exist: the citizen is authenticated at upload, but the GPS
+         * fix and the address only arrive with the submission.
+         *
+         * Never fatal. The report is already saved and the coordinates are in
+         * their own columns; an unstamped photo loses a convenience, while
+         * throwing here would lose the report itself.
+         */
+        try {
+            $stamp->apply(Storage::disk('public')->path($finalPath), [
+                'reference' => $report->reference,
+                'latitude' => (float) $report->latitude,
+                'longitude' => (float) $report->longitude,
+                'address' => $report->address,
+                'reporter' => $request->user()->name,
+                'taken_at' => $report->created_at,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Photo stamp failed.', [
+                'report_id' => $report->id,
+                'error' => $e->getMessage(),
+            ]);
         }
 
         $this->workflow->submitted($report);

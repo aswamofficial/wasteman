@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai;
 
+use App\Exceptions\ImageRejected;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -24,6 +25,13 @@ class FallbackWasteClassifier implements WasteClassifier
     {
         try {
             return $this->primary->classify($absolutePath, $mimeType);
+        } catch (ImageRejected $e) {
+            /*
+             * Not a failure — an answer. The stub cannot moderate anything, so
+             * falling back here would quietly convert a refused image into an
+             * ordinary waste report. Let it through to the controller.
+             */
+            throw $e;
         } catch (Throwable $e) {
             Log::warning('AI classification failed, falling back to stub.', [
                 'exception' => $e::class,

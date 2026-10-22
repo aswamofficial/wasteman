@@ -9,6 +9,13 @@ namespace App\Services\Ai;
  * Deliberately deterministic — derived from the file's own bytes — so the same
  * photo always classifies the same way. A random stub makes the report flow
  * look broken on retry and makes tests flaky.
+ *
+ * It moderates nothing, and cannot: there is no way to judge the contents of
+ * an image without looking at it. Everything reaching here is treated as
+ * appropriate, which is why `ImageRejected` is never allowed to fall back to
+ * this class — see FallbackWasteClassifier. With no API key configured, the
+ * moderation check is simply not running, and that is worth knowing rather
+ * than discovering.
  */
 class StubWasteClassifier implements WasteClassifier
 {

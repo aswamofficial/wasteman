@@ -14,6 +14,21 @@ class WasteAssessment implements StructuredOutputModel
 {
     use StructuredOutputModelTrait;
 
+    /*
+     * The moderation gate, asked first.
+     *
+     * Field order is the order the model fills them in, so this is decided
+     * before anything else describes what is in the frame — the judgement is
+     * not coloured by having just catalogued the contents, and when the answer
+     * is "not appropriate" the fields below are meant to stay empty rather
+     * than write a description of the thing we are refusing.
+     */
+    #[Constrained(description: 'False if the photo contains anything that does not belong in a municipal waste report: nudity or sexual content, graphic violence or injury, human or animal corpses, content that abuses, harasses or demeans a person, hate symbols, or a photo whose evident purpose is to show a person rather than waste. A bystander incidentally in frame on a public street is fine and is NOT a reason to answer false. Otherwise true, including for ordinary photos that simply do not show waste.')]
+    public bool $is_appropriate;
+
+    #[Constrained(description: 'When is_appropriate is false, the single closest category, one of "nudity", "violence", "abuse", "person_targeted", "other". Use an empty string when is_appropriate is true.')]
+    public string $rejection_category;
+
     #[Constrained(description: 'True if the photo shows discarded material — either rubbish that needs removing, or recyclable material set aside for collection. False for clean streets, selfies, screenshots or anything unrelated.')]
     public bool $is_waste;
 

@@ -106,6 +106,13 @@ const ReportFlow: React.FC = () => {
   const [step, setStep] = useState<Step>('capture');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * A moderation rejection is not a failed request, and must not read like
+   * one. "Try again" is the right advice for a timeout and exactly the wrong
+   * advice here — the same photo will be refused again, by hash, without
+   * reaching the classifier.
+   */
+  const [rejected, setRejected] = useState(false);
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
@@ -130,6 +137,7 @@ const ReportFlow: React.FC = () => {
   const handleFile = useCallback(async (file: Blob, name: string) => {
     setBusy(true);
     setError(null);
+    setRejected(false);
     try {
       const local = URL.createObjectURL(file);
       setPhotoUrl(local);
@@ -139,7 +147,11 @@ const ReportFlow: React.FC = () => {
       setAnalysis(result.analysis);
       setStep('analysis');
     } catch (err) {
-      setError(toApiError(err).message);
+      const apiErr = toApiError(err);
+      setError(apiErr.message);
+      // 422 from this endpoint is the moderation refusal; everything else is
+      // a transient problem the citizen can retry their way out of.
+      setRejected(apiErr.status === 422);
       setPhotoUrl(null);
     } finally {
       setBusy(false);
@@ -297,8 +309,18 @@ const ReportFlow: React.FC = () => {
 
   const ErrorBar = error ? (
     <div role="alert" className="mx-4 mb-3 flex items-start gap-2 rounded-2xl bg-danger-surface px-4 py-3">
-      <span className="material-symbols-outlined text-[20px] text-danger">error</span>
-      <p className="text-[13px] text-danger">{error}</p>
+      <span className="material-symbols-outlined text-[20px] text-danger">
+        {rejected ? 'block' : 'error'}
+      </span>
+      <div>
+        <p className="text-[13px] text-danger">{error}</p>
+        {rejected && (
+          <p className="mt-1 text-[12px] text-danger/80">
+            Point the camera at the waste itself — the bin, the pile or the dumped
+            material — with nobody as the subject of the shot.
+          </p>
+        )}
+      </div>
     </div>
   ) : null;
 
