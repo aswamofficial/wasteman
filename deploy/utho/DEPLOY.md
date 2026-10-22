@@ -13,7 +13,7 @@ is new and separately named:
 | DB user | `cleanwashroom` | `wasteman` |
 | PHP-FPM pool | `www` → `php8.3-fpm.sock` | `wasteman` → `php8.3-fpm-wasteman.sock` |
 | Nginx site | `cleanwashroom-api`, `cleanwashroom-app` | `wasteman` |
-| Hostnames | `cleanwashroom.org`, `api.…`, `app.…` | `wasteman.in`, `www.wasteman.in` |
+| Hostnames | `cleanwashroom.org`, `api.…`, `app.…` | `app.wasteman.in` (+ apex redirect) |
 | Queue worker | — | `wasteman-queue.service` |
 
 **Genuinely shared, and therefore worth watching:** the 80 GB disk, 4 GB RAM,
@@ -115,8 +115,13 @@ round-robin, and half of all requests would land on GoDaddy's parking page.
 
 | Type | Name | Value | TTL |
 |---|---|---|---|
+| A | `app` | `150.241.244.225` | 600 |
 | A | `@` | `150.241.244.225` | 600 |
 | A | `www` | `150.241.244.225` | 600 |
+
+The application answers on **`app.wasteman.in`**. The apex and `www` resolve here
+too, but only to issue a 301 to `app` — they exist so the bare domain is not
+dead, and so a landing page can take that slot later without touching the app.
 
 Delete any leftover `CNAME` for `www` first — GoDaddy's default parking config
 usually has one, and a CNAME and an A record for the same name cannot coexist.
@@ -128,8 +133,8 @@ usually has one, and a CNAME and an A record for the same name cannot coexist.
 ### 1c. Verify before continuing
 
 ```bash
+nslookup app.wasteman.in
 nslookup wasteman.in
-nslookup www.wasteman.in
 ```
 
 Both must return **`150.241.244.225`** and nothing else. If either still shows
@@ -275,9 +280,9 @@ apt -y install fonts-dejavu-core
 ```bash
 cd /var/www/wasteman/wastenotify-app
 npm ci
-VITE_API_URL="https://wasteman.in/api" \
-VITE_STORAGE_URL="https://wasteman.in/storage" \
-VITE_APP_URL="https://wasteman.in" \
+VITE_API_URL="https://app.wasteman.in/api" \
+VITE_STORAGE_URL="https://app.wasteman.in/storage" \
+VITE_APP_URL="https://app.wasteman.in" \
 VITE_GOOGLE_MAPS_API_KEY="CHANGE_ME" \
   npm run build
 
@@ -294,7 +299,7 @@ deploy caused it.
 > **The Maps key.** The local `.env` carries a key belonging to the Clean
 > Washroom Google Cloud project. Shipping it means Wasteman's map loads bill
 > that project and break the moment its referrer restrictions are tightened.
-> Create a Wasteman key, restrict it to `https://wasteman.in/*`, and use it here.
+> Create a Wasteman key, restrict it to `https://app.wasteman.in/*`, and use it here.
 
 At this point `http://wasteman.in` should serve the app over plain HTTP.
 
@@ -303,7 +308,7 @@ At this point `http://wasteman.in` should serve the app over plain HTTP.
 ## 7. HTTPS
 
 ```bash
-certbot --nginx -d wasteman.in -d www.wasteman.in
+certbot --nginx -d app.wasteman.in -d wasteman.in -d www.wasteman.in
 ```
 
 certbot is already installed for Clean Washroom. It edits only the server block
@@ -353,8 +358,8 @@ systemctl status wasteman-queue --no-pager
 ```bash
 # Wasteman
 curl -I https://wasteman.in                       # 200, text/html
-curl -s https://wasteman.in/api/legal/privacy     # 200, JSON
-curl -I https://wasteman.in/storage/              # 403 or 404, never 502
+curl -s https://app.wasteman.in/api/legal/privacy     # 200, JSON
+curl -I https://app.wasteman.in/storage/              # 403 or 404, never 502
 
 # Clean Washroom — confirm it is exactly as it was
 curl -I https://cleanwashroom.org

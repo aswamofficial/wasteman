@@ -16,7 +16,7 @@ set -euo pipefail
 ROOT=/var/www/wasteman
 API="$ROOT/wastenotify-api"
 APP="$ROOT/wastenotify-app"
-SITE_URL="${SITE_URL:-https://wasteman.in}"
+SITE_URL="${SITE_URL:-https://app.wasteman.in}"
 
 say() { printf '\n\033[1;34m==> %s\033[0m\n' "$1"; }
 
